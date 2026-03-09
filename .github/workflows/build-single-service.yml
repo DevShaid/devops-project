@@ -1,0 +1,194 @@
+# .github/workflows/build-single-service.yml
+
+name: Reusable Docker Build and Push
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: 'The name of the service (e.g., event-audit-dashboard)'
+        required: true
+        type: string
+      service_module_name:
+        description: 'The internal Python module or directory for coverage (e.g., audit_analysis or .)'
+        required: true
+        type: string
+      docker_org:
+        description: 'Docker Hub username or organization'
+        required: true
+        type: string
+      docker_repo_prefix:
+        description: 'Common prefix for Docker image names'
+        required: true
+        type: string
+      ref_name:
+        description: 'The name of the branch that triggered the workflow (e.g., main, stage, dev)'
+        required: true
+        type: string
+      github_sha:
+        description: 'The commit SHA for tagging'
+        required: true
+        type: string
+      is_src_change:
+        description: 'Whether changes were detected in the source code.'
+        required: true
+        type: string
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+
+jobs:
+  security-scans:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    if: ${{ inputs.is_src_change == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python for scans
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install service dependencies
+        working-directory: src/${{ inputs.service_name }}
+        run: poetry install --no-root
+
+      - name: Install Bandit
+        run: |
+          pip install bandit bandit-sarif-formatter
+
+      - name: Run Bandit Security Scan for ${{ inputs.service_name }}
+        run: |
+          cd src/${{ inputs.service_name }}
+          bandit -r . -ll -f sarif -o bandit_results.sarif || true
+
+      - name: Run Trivy Dependency Scan for ${{ inputs.service_name }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'src/${{ inputs.service_name }}'
+          format: 'sarif'
+          output: 'trivy-dependency-results_${{ inputs.service_name }}.sarif'
+          scanners: 'vuln,secret'
+          exit-code: '0'
+          # Removed severity and ignore-unfixed to capture all results
+
+      # Upload Bandit SARIF results
+      - name: Upload Bandit SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: src/${{ inputs.service_name }}/bandit_results.sarif
+          wait-for-processing: true
+          category: ${{ inputs.service_name }}-bandit
+
+      # Upload Trivy Dependency Scan results
+      - name: Upload Trivy Dependency Scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-dependency-results_${{ inputs.service_name }}.sarif
+          wait-for-processing: true
+          category: ${{ inputs.service_name }}-trivy-dependency-scan
+
+      - name: Run Unit and Integration Tests
+        working-directory: src/${{ inputs.service_name }}
+        run: |
+          poetry run pytest --cov=${{ inputs.service_module_name }} --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Upload Test Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ inputs.service_name }}
+          path: src/${{ inputs.service_name }}/coverage.xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/${{ inputs.service_name }}/coverage.xml
+          disable_search: true
+          flags: unittests
+          verbose: true
+
+  # Job 2: Build and Push Docker Image (depends on security scans passing)
+  build-and-push:
+    needs: security-scans
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    if: ${{ inputs.is_src_change == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Determine Docker Image Tags
+        id: docker_meta
+        run: |
+          IMAGE_NAME="${{ inputs.docker_org }}/${{ inputs.docker_repo_prefix }}${{ inputs.service_name }}"
+          TAGS="${IMAGE_NAME}:${{ inputs.github_sha }}"
+
+          # Get the lowercase branch name for tagging
+          BRANCH_TAG=$(echo "${{ inputs.ref_name }}" | tr '[:upper:]' '[:lower:]')
+
+          if [[ "${{ inputs.ref_name }}" == "main" ]]; then
+            TAGS="${TAGS},${IMAGE_NAME}:latest"
+          else
+            TAGS="${TAGS}"
+          fi
+
+          echo "Calculated IMAGE_NAME: $IMAGE_NAME"
+          echo "Calculated TAGS: $TAGS"
+          echo "TAGS=$TAGS" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build and push Docker image for ${{ inputs.service_name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: src/${{ inputs.service_name }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.docker_meta.outputs.TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Trivy SCA - Image Scan (after Docker build) 🐳
+      - name: Run Trivy Image Scan for ${{ inputs.service_name }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ inputs.docker_org }}/${{ inputs.docker_repo_prefix }}${{ inputs.service_name }}:${{ inputs.github_sha }}"
+          format: 'sarif'
+          output: 'trivy-image-results_${{ inputs.service_name }}.sarif'
+          scanners: 'vuln,secret,misconfig'
+          exit-code: '0'
+          # ignore-unfixed: true
+          # severity: 'HIGH,CRITICAL'
+
+      - name: Upload Trivy Image Scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image-results_${{ inputs.service_name }}.sarif
+          wait-for-processing: true
+          category: ${{ inputs.service_name }}-trivy-image-scan
