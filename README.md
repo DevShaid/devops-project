@@ -3,7 +3,7 @@
 [![Security Scan](https://github.com/DevShaid/devops-project/actions/workflows/build-single-service.yml/badge.svg)](https://github.com/DevShaid/devops-project/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An end-to-end (E2E) production-grade **Audit Logging Platform** deployed on **Kubernetes (K3s)**. This project demonstrates advanced automation across DevOps, SRE, and DevSecOps disciplines, focusing on security-first deployment and event-driven microservices.
+An end-to-end (E2E **Audit Logging Platform** deployed on **Kubernetes (K3s)**. This project demonstrates advanced automation across DevOps, SRE, and DevSecOps disciplines, focusing on security-first deployment and event-driven microservices.
 
 ##  Overview
 The **AuditFlow Platform** is a Python-based microservices architecture that generates, processes, and visualizes audit events using an event-driven design powered by **RabbitMQ**.
