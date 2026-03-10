@@ -5,14 +5,12 @@ import logging
 import sys
 import yaml
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def promote_images(override_file, github_sha, docker_org, deployment_namespace):
     logging.info(f"Starting image promotion for namespace: {deployment_namespace}")
     
-    # Load the override file
     try:
         with open(override_file, 'r') as f:
             overrides = yaml.safe_load(f)
@@ -24,9 +22,7 @@ def promote_images(override_file, github_sha, docker_org, deployment_namespace):
         return 1
 
     promoted_services_count = 0
-    # Iterate through each service in the override file
     for service_name, service_config in overrides.items():
-        # Check for the specific condition to promote
         if 'image' in service_config and 'tag' in service_config['image'] and service_config['image']['tag'] == github_sha:
             
             source_image = f"{docker_org}/{service_name}:{github_sha}"
@@ -36,15 +32,12 @@ def promote_images(override_file, github_sha, docker_org, deployment_namespace):
             logging.info(f"Attempting to promote {source_image} to {target_image}")
             
             try:
-                # Docker pull
                 logging.info(f"Pulling {source_image}...")
                 subprocess.run(['docker', 'pull', source_image], check=True, stdout=sys.stdout, stderr=sys.stderr)
                 
-                # Docker tag
                 logging.info(f"Tagging {source_image} as {target_image}...")
                 subprocess.run(['docker', 'tag', source_image, target_image], check=True, stdout=sys.stdout, stderr=sys.stderr)
                 
-                # Docker push
                 logging.info(f"Pushing {target_image}...")
                 subprocess.run(['docker', 'push', target_image], check=True, stdout=sys.stdout, stderr=sys.stderr)
                 
@@ -52,7 +45,7 @@ def promote_images(override_file, github_sha, docker_org, deployment_namespace):
                 promoted_services_count += 1
             except subprocess.CalledProcessError as e:
                 logging.error(f"Failed to promote {service_name}. Error: {e}")
-                return 1 # Exit with an error code
+                return 1 
 
     if promoted_services_count == 0:
         logging.info("No services found with a matching SHA tag to promote.")
