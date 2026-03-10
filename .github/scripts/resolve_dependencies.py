@@ -27,7 +27,6 @@ if __name__ == "__main__":
 
     deploy_list = resolve_dependencies(service_name, dependencies_config)
     
-    # Using GITHUB_OUTPUT for modern GitHub Actions
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output_file:
         print(f"services_to_deploy={','.join(deploy_list)}", file=output_file)
 
