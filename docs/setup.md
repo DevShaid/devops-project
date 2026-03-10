@@ -1,4 +1,4 @@
-# Project Genesis Setup Guide
+# Project Setup Guide
 
 This document provides step-by-step instructions to set up your development environment and deploy the **AuditFlow Platform** application. It reflects the current state of **Project Genesis**, where you have an existing K3s cluster on a Raspberry Pi 5 server and use your laptop for development and cluster interaction.
 
