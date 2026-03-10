@@ -1,10 +1,10 @@
-# ANSIBLE
+
 
 # Ansible Playbooks for AuditFlow Infrastructure
 
 This repository contains Ansible playbooks and roles designed to automate the deployment and configuration of the AuditFlow Platform's home lab infrastructure, primarily focusing on a [K3s](https://k3s.io/) Kubernetes cluster and a self-hosted [GitHub Actions](https://docs.github.com/en/actions) runner.
 
-## 🚀 Purpose
+##Purpose
 
 The goal of these Ansible playbooks is to provide an idempotent and automated way to:
 
@@ -12,7 +12,7 @@ The goal of these Ansible playbooks is to provide an idempotent and automated wa
 * **Deploy K3s Cluster:** Set up a lightweight K3s Kubernetes cluster with one master and multiple worker nodes.
 * **Deploy GitHub Actions Self-Hosted Runner:** Launch a GitHub Actions runner directly within the K3s cluster as a Kubernetes workload.
 
-## 📂 Project Structure
+##Project Structure
 
 The Ansible project adheres to a standard layout:
 
@@ -32,7 +32,7 @@ infra/ansible/
 └── github_runner/       # (Future) Tasks for deploying the GitHub Actions runner in K8s
 ```
 
-## 🛠️ Getting Started
+##Getting Started
 
 ### Prerequisites
 
@@ -47,7 +47,7 @@ Before running any Ansible commands:
     * Secure permissions: `chmod 600 ~/.ansible_vault/vault_pass.txt`
     * **IMPORTANT:** This file must **NEVER** be committed to Git.
 
-### 🔑 Secrets Management with Ansible Vault
+### Secrets Management with Ansible Vault
 
 Sensitive information (like SSH passwords, sudo passwords, and the Ansible connection user) is encrypted using Ansible Vault and stored in `infra/ansible/group_vars/all/vault.yaml`.
 
@@ -64,7 +64,7 @@ Sensitive information (like SSH passwords, sudo passwords, and the Ansible conne
     ansible_become_pass: 'your_sudo_password_here'
     ```
 
-### 🏃 How to Run Playbooks
+###How to Run Playbooks
 
 All playbooks are executed from the `infra/ansible/` directory.
 
@@ -83,7 +83,7 @@ All playbooks are executed from the `infra/ansible/` directory.
     ansible-playbook homelab.yaml --ask-vault-pass
     ```
 
-### 📋 Roles Overview
+###Roles Overview
 
 * **`k3s_master`**:
     * **Purpose:** Initializes the K3s master node.
@@ -95,7 +95,7 @@ All playbooks are executed from the `infra/ansible/` directory.
     * **Purpose:** Will deploy the self-hosted GitHub Actions runner into the K3s cluster.
     * **Key Action:** Will apply Kubernetes manifests (Deployment, ServiceAccount, etc.) for the runner.
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 * **Basic Connectivity Check:**
     Ensure Ansible can connect to your hosts:
